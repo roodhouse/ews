@@ -1440,7 +1440,8 @@ function AboutSystemCard() {
       <div className="about-copy">
         <p>
           This site watches a fixed cohort of business jets and asks a simple question: is the number currently airborne
-          unusual for this time? It is not tracking all aircraft. The tracked set is built from{' '}
+          unusual for this time? The current emergency level is reported on a scale of 1 to 5, with 5 being an
+          indicator of a likely imminent apocalypse. It is not tracking all aircraft. The tracked set is built from{' '}
           <a
             href="https://www.faa.gov/licenses_certificates/aircraft_certification/aircraft_registry/releasable_aircraft_download"
             target="_blank"
