@@ -139,19 +139,235 @@
 
 html.emergency-color-scheme,
 html.emergency-color-scheme body {
+  --page-bg: #000000;
+  --page-text: #ffffff;
+  --page-muted: #bbbbbb;
+  --panel-text: #ffffff;
+  --panel-muted: #bbbbbb;
+  --panel-border: #666666;
   background: #000000;
   color: #ffffff;
 }
 
-html.emergency-color-scheme .background-wallpaper,
-html.emergency-color-scheme .app-shell,
-html.emergency-color-scheme .loading-screen {
+html.emergency-color-scheme .background-wallpaper {
   filter: invert(1);
 }
 
-/* The page is filtered after paint, so cyan source text renders as red. */
+html.emergency-color-scheme .loading-screen {
+  background: rgb(36, 43, 51);
+}
+
+html.emergency-color-scheme .app-shell {
+  color: #ffffff;
+}
+
+html.emergency-color-scheme .panel,
+html.emergency-color-scheme .map-hover-card,
+html.emergency-color-scheme .archive-chart-tooltip,
+html.emergency-color-scheme .brush-range-label,
+html.emergency-color-scheme .flight-list li {
+  border-color: #666666;
+  background: #000000;
+  color: #ffffff;
+}
+
+html.emergency-color-scheme a,
+html.emergency-color-scheme a:visited {
+  color: #ffff00;
+}
+
+html.emergency-color-scheme button {
+  border-color: #666666;
+  background: #101010;
+  color: #ffffff;
+}
+
+html.emergency-color-scheme ::selection {
+  background: #392600;
+  color: #ffffff;
+}
+
 html.emergency-color-scheme .app-shell :is(h1, h2, .chart-subsection-header strong, .map-hover-header strong) {
-  color: #00ffff !important;
+  color: #ff0000 !important;
+}
+
+html.emergency-color-scheme :is(
+  .hero-copy,
+  .panel-lede,
+  .panel-footnote,
+  .summary-copy,
+  .hero-caption,
+  .chart-range-copy span,
+  .chart-subsection-header span,
+  .flight-list span,
+  .empty-state,
+  .map-hover-header span,
+  .map-hover-grid dt,
+  .map-badge,
+  .map-hover-grid dd,
+  .chart-range-copy strong,
+  .flight-list strong,
+  .empty-state strong,
+  .model-count
+) {
+  color: #ffffff;
+}
+
+html.emergency-color-scheme .status-banner {
+  border-color: #666666;
+  background: #000022;
+  color: #ffffff;
+}
+
+html.emergency-color-scheme .provider-toggle {
+  border-color: #666666;
+  background: #101010;
+  color: #ffffff;
+}
+
+html.emergency-color-scheme .provider-toggle:hover:not(:disabled),
+html.emergency-color-scheme .provider-toggle-active {
+  background: #171717;
+}
+
+html.emergency-color-scheme .provider-error {
+  color: #66ffff;
+}
+
+html.emergency-color-scheme .emergency-level-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+html.emergency-color-scheme .dial-panel.emergency-level-1 {
+  --emergency-bg: #000000;
+  --emergency-border: #666666;
+  --emergency-text: #ffffff;
+}
+
+html.emergency-color-scheme .dial-panel.emergency-level-2 {
+  --emergency-bg: #00083d;
+  --emergency-border: #2b4bb9;
+  --emergency-text: #ffffff;
+}
+
+html.emergency-color-scheme .dial-panel.emergency-level-3 {
+  --emergency-bg: #0027b2;
+  --emergency-border: #467aff;
+  --emergency-text: #ffffff;
+}
+
+html.emergency-color-scheme .dial-panel.emergency-level-4 {
+  --emergency-bg: #0d73d7;
+  --emergency-border: #60b0ff;
+  --emergency-text: #ffffff;
+}
+
+html.emergency-color-scheme .dial-panel.emergency-level-5 {
+  --emergency-bg: #46e3e3;
+  --emergency-border: #80e2e2;
+  --emergency-text: #000000;
+}
+
+html.emergency-color-scheme .map-sphere {
+  fill: #050505;
+  stroke: #666666;
+}
+
+html.emergency-color-scheme .map-graticule {
+  stroke: #222222;
+}
+
+html.emergency-color-scheme .map-geography {
+  fill: #0d0d0d;
+  stroke: #444444;
+}
+
+html.emergency-color-scheme .map-marker-halo {
+  fill: rgba(255, 255, 0, 0.14);
+}
+
+html.emergency-color-scheme .map-marker-plane {
+  fill: #ffff00;
+  stroke: #000000;
+}
+
+html.emergency-color-scheme .map-marker-hit {
+  fill: rgba(255, 255, 255, 0.001);
+}
+
+html.emergency-color-scheme .map-marker:hover .map-marker-plane,
+html.emergency-color-scheme .map-marker:focus-visible .map-marker-plane,
+html.emergency-color-scheme .map-marker-active .map-marker-plane {
+  fill: #33ffff;
+}
+
+html.emergency-color-scheme .map-marker:hover .map-marker-halo,
+html.emergency-color-scheme .map-marker:focus-visible .map-marker-halo,
+html.emergency-color-scheme .map-marker-active .map-marker-halo {
+  fill: rgba(51, 255, 255, 0.14);
+}
+
+html.emergency-color-scheme .chart-range-track {
+  background: #303030;
+}
+
+html.emergency-color-scheme .chart-range-track-active {
+  background: #ffff00;
+}
+
+html.emergency-color-scheme .chart-range-input::-webkit-slider-thumb {
+  border-color: #999999;
+  background: #000000;
+}
+
+html.emergency-color-scheme .chart-range-input::-moz-range-thumb {
+  border-color: #999999;
+  background: #000000;
+}
+
+html.emergency-color-scheme .flight-list .model-passenger-label {
+  border-color: #474747;
+  background: #080808;
+  color: #ffffff;
+}
+
+html.emergency-color-scheme .empty-state {
+  border-color: #333333;
+  background: #070707;
+}
+
+html.emergency-color-scheme .archive-chart-svg text {
+  fill: #ffffff;
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#0000ee"] {
+  stroke: #ffff00;
+}
+
+html.emergency-color-scheme .archive-chart-svg [fill^="rgba(0, 0, 238"] {
+  fill: rgba(255, 255, 0, 0.14);
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#d4d4d4"] {
+  stroke: #2b2b2b;
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#999999"] {
+  stroke: #666666;
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#666666"] {
+  stroke: #999999;
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#8a8a8a"] {
+  stroke: #757575;
+}
+
+html.emergency-color-scheme .archive-chart-svg [stroke="#ffffff"] {
+  stroke: #000000;
 }
 
 .dial-stack {
