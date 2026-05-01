@@ -29,6 +29,9 @@ const ARCHIVE_CHART_HEIGHT = 320
 const ARCHIVE_DIVERGENCE_HEIGHT = 180
 const ARCHIVE_CHART_MARGIN = { top: 16, right: 18, bottom: 28, left: 44 }
 const ARCHIVE_CHART_MOBILE_MARGIN = { top: 18, right: 16, bottom: 42, left: 54 }
+const MAP_MIN_ZOOM = 1
+const MAP_ZOOM_STEP = 1.45
+const MAP_MAX_ZOOM = 6 * MAP_ZOOM_STEP
 const EMERGENCY_LEVEL_COUNT = 5
 const EMERGENCY_SCHEME_TAP_WINDOW_MS = 700
 const AIRCRAFT_MODEL_DETAIL_RANK_LIMIT = 40
@@ -290,6 +293,18 @@ function estimateMaxSeatsAirborne(aircraft, totalAircraftCountOverride = null) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
+}
+
+function constrainMapTransform(transform) {
+  const scale = clamp(transform.scale, MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+  const minTranslateX = MAP_WIDTH - MAP_WIDTH * scale
+  const minTranslateY = MAP_HEIGHT - MAP_HEIGHT * scale
+
+  return {
+    scale,
+    translateX: clamp(transform.translateX, minTranslateX, 0),
+    translateY: clamp(transform.translateY, minTranslateY, 0),
+  }
 }
 
 function normalizeDegrees(value) {
@@ -736,12 +751,20 @@ function ArchiveSvgChart({
             </text>
           </g>
         ))}
-        {chartState.xTicks.map((tick) => (
+        {chartState.xTicks.map((tick, index) => (
           <g key={`x-${tick}`}>
             <text
               x={chartState.xScaleFromTimestamp(tick)}
               y={chartState.height - 6}
-              textAnchor="middle"
+              textAnchor={
+                chartState.xTicks.length === 1
+                  ? 'start'
+                  : index === 0
+                    ? 'start'
+                    : index === chartState.xTicks.length - 1
+                      ? 'end'
+                      : 'middle'
+              }
               fill={CHART_TICK_COLOR}
               fontSize={chartState.tickFontSize}
             >
@@ -1277,6 +1300,13 @@ function ArchiveChartPanel({ data, signal, defaultWindowDays }) {
 function GlobalMap({ aircraft }) {
   const isNarrowLayout = useIsNarrowLayout()
   const [activePlaneHex, setActivePlaneHex] = useState(null)
+  const [mapTransform, setMapTransform] = useState(() => constrainMapTransform({
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  }))
+  const svgRef = useRef(null)
+  const panStateRef = useRef(null)
   const activePlane = aircraft.find((plane) => plane.hex === activePlaneHex) ?? null
   const projection = isNarrowLayout ? createUnitedStatesProjection() : createWorldProjection()
   const path = geoPath(projection)
@@ -1284,9 +1314,166 @@ function GlobalMap({ aircraft }) {
   const markerHaloRadius = isNarrowLayout ? 18 : 12
   const markerHitRadius = isNarrowLayout ? 30 : 16
   const markerIconScale = isNarrowLayout ? 1.65 : 1
+  const mapTransformValue = `matrix(${mapTransform.scale} 0 0 ${mapTransform.scale} ${mapTransform.translateX} ${mapTransform.translateY})`
 
   function toggleActivePlane(planeHex) {
     setActivePlaneHex((currentHex) => (currentHex === planeHex ? null : planeHex))
+  }
+
+  function getSvgPoint(event) {
+    const svg = svgRef.current
+    const screenMatrix = svg?.getScreenCTM()
+    if (!svg || !screenMatrix) {
+      return null
+    }
+
+    const point = svg.createSVGPoint()
+    point.x = event.clientX
+    point.y = event.clientY
+    return point.matrixTransform(screenMatrix.inverse())
+  }
+
+  function getVisibleAircraftCentroid() {
+    const visiblePoints = []
+
+    for (const plane of aircraft) {
+      const point = projection([plane.lon, plane.lat])
+      if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+        continue
+      }
+
+      const viewportX = mapTransform.scale * point[0] + mapTransform.translateX
+      const viewportY = mapTransform.scale * point[1] + mapTransform.translateY
+
+      if (viewportX < 0 || viewportX > MAP_WIDTH || viewportY < 0 || viewportY > MAP_HEIGHT) {
+        continue
+      }
+
+      visiblePoints.push(point)
+    }
+
+    if (!visiblePoints.length) {
+      return null
+    }
+
+    return {
+      x: visiblePoints.reduce((total, point) => total + point[0], 0) / visiblePoints.length,
+      y: visiblePoints.reduce((total, point) => total + point[1], 0) / visiblePoints.length,
+    }
+  }
+
+  function zoomMap(factor) {
+    setMapTransform((currentTransform) => {
+      const nextScale = clamp(currentTransform.scale * factor, MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+      const scaleRatio = nextScale / currentTransform.scale
+      const centerX = MAP_WIDTH / 2
+      const centerY = MAP_HEIGHT / 2
+
+      return constrainMapTransform({
+        scale: nextScale,
+        translateX: centerX - scaleRatio * (centerX - currentTransform.translateX),
+        translateY: centerY - scaleRatio * (centerY - currentTransform.translateY),
+      })
+    })
+  }
+
+  function zoomToVisibleAircraftCentroid(factor) {
+    const centroid = getVisibleAircraftCentroid()
+    if (!centroid) {
+      zoomMap(factor)
+      return
+    }
+
+    setMapTransform((currentTransform) => {
+      const nextScale = clamp(currentTransform.scale * factor, MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+
+      return constrainMapTransform({
+        scale: nextScale,
+        translateX: MAP_WIDTH / 2 - nextScale * centroid.x,
+        translateY: MAP_HEIGHT / 2 - nextScale * centroid.y,
+      })
+    })
+  }
+
+  function panMap(deltaX, deltaY) {
+    setMapTransform((currentTransform) =>
+      constrainMapTransform({
+        ...currentTransform,
+        translateX: currentTransform.translateX + deltaX,
+        translateY: currentTransform.translateY + deltaY,
+      }),
+    )
+  }
+
+  function handleMapPointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return
+    }
+
+    const point = getSvgPoint(event)
+    if (!point) {
+      return
+    }
+
+    const markerElement = event.target.closest?.('.map-marker')
+
+    panStateRef.current = {
+      pointerId: event.pointerId,
+      lastX: point.x,
+      lastY: point.y,
+      moved: false,
+      markerHex: markerElement?.dataset?.planeHex || null,
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  function handleMapPointerMove(event) {
+    const panState = panStateRef.current
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return
+    }
+
+    const point = getSvgPoint(event)
+    if (!point) {
+      return
+    }
+
+    const deltaX = point.x - panState.lastX
+    const deltaY = point.y - panState.lastY
+    panState.lastX = point.x
+    panState.lastY = point.y
+
+    if (Math.abs(deltaX) > 0.25 || Math.abs(deltaY) > 0.25) {
+      panState.moved = true
+    }
+
+    panMap(deltaX, deltaY)
+  }
+
+  function handleMapPointerUp(event) {
+    const panState = panStateRef.current
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return
+    }
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    panStateRef.current = null
+
+    if (!panState.moved && panState.markerHex) {
+      toggleActivePlane(panState.markerHex)
+    } else if (!panState.moved) {
+      setActivePlaneHex(null)
+    }
+  }
+
+  function handleMapPointerCancel(event) {
+    const panState = panStateRef.current
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return
+    }
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    panStateRef.current = null
   }
 
   return (
@@ -1296,6 +1483,14 @@ function GlobalMap({ aircraft }) {
       </div>
 
       <div className="map-frame">
+        <div className="map-controls" aria-label="Map controls">
+          <button type="button" className="map-control-button map-zoom-button" onClick={() => zoomToVisibleAircraftCentroid(MAP_ZOOM_STEP)} aria-label="Zoom in">
+            <span className="map-zoom-icon map-zoom-plus" aria-hidden="true" />
+          </button>
+          <button type="button" className="map-control-button map-zoom-button" onClick={() => zoomMap(1 / MAP_ZOOM_STEP)} aria-label="Zoom out">
+            <span className="map-zoom-icon map-zoom-minus" aria-hidden="true" />
+          </button>
+        </div>
         {activePlane ? (
           <div className="map-hover-card map-hover-card-active">
             <>
@@ -1325,78 +1520,73 @@ function GlobalMap({ aircraft }) {
           </div>
         ) : null}
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           className={`map-svg${isNarrowLayout ? ' map-svg-narrow' : ''}`}
           role="img"
           aria-label="Current aircraft positions"
-          onPointerUp={
-            isNarrowLayout
-              ? (event) => {
-                  if (event.target !== event.currentTarget) {
-                    return
-                  }
-                  setActivePlaneHex(null)
-                }
-              : undefined
-          }
+          onPointerDown={handleMapPointerDown}
+          onPointerMove={handleMapPointerMove}
+          onPointerUp={handleMapPointerUp}
+          onPointerCancel={handleMapPointerCancel}
         >
-          {!isNarrowLayout ? <rect x="8" y="8" width="784" height="394" rx="198" className="map-sphere" /> : null}
-          <path d={graticulePath} className="map-graticule" />
-          {worldGeographies.map((geo) => (
-            <path key={geo.id || geo.properties?.name} d={path(geo)} className="map-geography" />
-          ))}
-          {aircraft.map((plane) => {
-            const point = projection([plane.lon, plane.lat])
-            if (!point) {
-              return null
-            }
+          <g className="map-viewport" transform={mapTransformValue}>
+            {!isNarrowLayout ? <rect x="8" y="8" width="784" height="394" rx="198" className="map-sphere" /> : null}
+            <path d={graticulePath} className="map-graticule" />
+            {worldGeographies.map((geo) => (
+              <path key={geo.id || geo.properties?.name} d={path(geo)} className="map-geography" />
+            ))}
+            {aircraft.map((plane) => {
+              const point = projection([plane.lon, plane.lat])
+              if (!point) {
+                return null
+              }
 
-            return (
-              <g
-                key={plane.hex}
-                className={`map-marker${plane.hex === activePlaneHex ? ' map-marker-active' : ''}${isNarrowLayout ? ' map-marker-touch' : ''}`}
-                transform={`translate(${point[0]} ${point[1]})`}
-                onMouseEnter={isNarrowLayout ? undefined : () => setActivePlaneHex(plane.hex)}
-                onMouseLeave={isNarrowLayout ? undefined : () => setActivePlaneHex((currentHex) => (currentHex === plane.hex ? null : currentHex))}
-                onFocus={() => setActivePlaneHex(plane.hex)}
-                onBlur={() => setActivePlaneHex((currentHex) => (currentHex === plane.hex ? null : currentHex))}
-                onClick={(event) => {
-                  if (isNarrowLayout) {
-                    return
-                  }
+              return (
+                <g
+                  key={plane.hex}
+                  data-plane-hex={plane.hex}
+                  className={`map-marker${plane.hex === activePlaneHex ? ' map-marker-active' : ''}${isNarrowLayout ? ' map-marker-touch' : ''}`}
+                  transform={`matrix(${1 / mapTransform.scale} 0 0 ${1 / mapTransform.scale} ${point[0]} ${point[1]})`}
+                  onMouseEnter={isNarrowLayout ? undefined : () => setActivePlaneHex(plane.hex)}
+                  onMouseLeave={isNarrowLayout ? undefined : () => setActivePlaneHex((currentHex) => (currentHex === plane.hex ? null : currentHex))}
+                  onFocus={() => setActivePlaneHex(plane.hex)}
+                  onBlur={() => setActivePlaneHex((currentHex) => (currentHex === plane.hex ? null : currentHex))}
+                  onClick={(event) => {
+                    if (isNarrowLayout) {
+                      return
+                    }
 
-                  event.stopPropagation()
-                  toggleActivePlane(plane.hex)
-                }}
-                onPointerDown={(event) => {
-                  if (!isNarrowLayout) {
-                    return
-                  }
-
-                  event.preventDefault()
-                  event.stopPropagation()
-                  toggleActivePlane(plane.hex)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
+                    event.stopPropagation()
                     toggleActivePlane(plane.hex)
-                  }
-                }}
-                tabIndex={0}
-                role="button"
-                aria-pressed={plane.hex === activePlaneHex}
-                aria-label={`${plane.label || plane.registration || plane.hex?.toUpperCase()} at ${formatAltitude(plane.altitudeFt)}, ${formatSpeed(plane.groundSpeedKt)}`}
-              >
-                <circle r={markerHitRadius} className="map-marker-hit" />
-                <circle r={markerHaloRadius} className="map-marker-halo" />
-                <g transform={`rotate(${getProjectedAircraftRotation(plane, projection) ?? 0}) scale(${markerIconScale})`}>
-                  <path d={AIRCRAFT_MARKER_PATH} className="map-marker-plane" />
+                  }}
+                  onPointerDown={(event) => {
+                    if (!isNarrowLayout) {
+                      event.stopPropagation()
+                      return
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      toggleActivePlane(plane.hex)
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={plane.hex === activePlaneHex}
+                  aria-label={`${plane.label || plane.registration || plane.hex?.toUpperCase()} at ${formatAltitude(plane.altitudeFt)}, ${formatSpeed(plane.groundSpeedKt)}`}
+                >
+                  <circle r={markerHitRadius} className="map-marker-hit" />
+                  <circle r={markerHaloRadius} className="map-marker-halo" />
+                  <g transform={`rotate(${getProjectedAircraftRotation(plane, projection) ?? 0}) scale(${markerIconScale})`}>
+                    <path d={AIRCRAFT_MARKER_PATH} className="map-marker-plane" />
+                  </g>
+                  <title>{`${plane.label} · ${formatAltitude(plane.altitudeFt)} · ${formatSpeed(plane.groundSpeedKt)}`}</title>
                 </g>
-                <title>{`${plane.label} · ${formatAltitude(plane.altitudeFt)} · ${formatSpeed(plane.groundSpeedKt)}`}</title>
-              </g>
-            )
-          })}
+              )
+            })}
+          </g>
         </svg>
       </div>
     </section>
