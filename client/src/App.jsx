@@ -1529,11 +1529,6 @@ function AboutSystemCard() {
           </a>
           .
         </p>
-        <p>
-          <a href="https://github.com/kylemcdonald/ews" target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-        </p>
       </div>
     </section>
   )
@@ -1740,6 +1735,24 @@ function App() {
               will immediately take to the skies and escape city centers. This site tracks this indicator in realtime.
               The current emergency level is reported on a scale of 1 to 5, with 5 being an indicator of a likely
               imminent apocalypse.
+            </p>
+            <p className="hero-credit">
+              built by{' '}
+              <a href="https://www.instagram.com/kcimc/" target="_blank" rel="noreferrer">
+                Kyle McDonald
+              </a>{' '}
+              /{' '}
+              <a href="https://github.com/kylemcdonald/ews" target="_blank" rel="noreferrer">
+                GitHub
+              </a>{' '}
+              /{' '}
+              <a href="https://t.me/apocalypse_ews" target="_blank" rel="noreferrer">
+                Telegram Notifications
+              </a>{' '}
+              /{' '}
+              <a href="https://ews.kylemcdonald.net/rss.xml" target="_blank" rel="noreferrer">
+                RSS
+              </a>
             </p>
           </section>
           <div className="dial-stack">
